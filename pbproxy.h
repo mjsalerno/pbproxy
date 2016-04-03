@@ -10,8 +10,11 @@
 #include <signal.h>
 #include <time.h>
 #include <sys/time.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
 
-#define BUFF_SIZE 50
+#define BUFF_SIZE 1024
 
 void print_help(FILE *fd);
 
