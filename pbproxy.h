@@ -1,5 +1,5 @@
-#ifndef MY_DUMP_H
-#define MY_DUMP_H
+#ifndef PBPROXY_H
+#define PBPROXY_H
 
 #include <ctype.h>
 #include <stdlib.h>

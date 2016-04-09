@@ -7,11 +7,14 @@ BIN = pbproxy
 
 all: pbproxy
 
-pbproxy: pbproxy.o
-	$(CC) $(CFLAGS) -o $(BIN) pbproxy.o $(LIBS)
+pbproxy: pbproxy.o encryption.o
+	$(CC) $(CFLAGS) -o $(BIN) pbproxy.o encryption.o $(LIBS)
 
 pbproxy.o: pbproxy.c pbproxy.h
 	$(CC) $(CFLAGS) -c pbproxy.c
+	
+encryption.o: encryption.c encryption.h
+	$(CC) $(CFLAGS) -c encryption.c
 
 clean:
 	rm -f *.o *.out pbproxy
