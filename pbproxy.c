@@ -3,7 +3,7 @@
 
 int main(int argc, char * argv[]) {
 
-    int index, c;
+    int index, c, rtn;
     char *lval = NULL;
     char *kval = NULL;
     char *host_val = NULL;
@@ -68,6 +68,7 @@ int main(int argc, char * argv[]) {
     } else {
         //in server mode
 
+        //get FD to listen with
         if ((srv_sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
             perror("socket() failed");
             return EXIT_FAILURE;
@@ -98,6 +99,7 @@ int main(int argc, char * argv[]) {
             struct sockaddr_in service_addr;
             int service_sock = -1;
 
+            fd_set active_fd_set;
 
             //wait for client
             if ((cli_sock = accept(srv_sock, (struct sockaddr *) &cli_addr, &cli_len)) < 0) {
@@ -114,17 +116,68 @@ int main(int argc, char * argv[]) {
             memset(&service_addr, 0, sizeof(service_addr));
             service_addr.sin_family      = AF_INET;
             service_addr.sin_addr.s_addr = inet_addr(host_val);
-            service_addr.sin_port        = htons(echoServPort);
+            service_addr.sin_port        = htons(strtoul(port_val, &err_at, 10));
 
-            //do select and connect to ssh
-
-            printf("Handling client %s\n", inet_ntoa(cli_addr.sin_addr));
-
-            if(send(cli_sock, "HELLO", 6, 0) < 0) {
-                perror("send() failed");
+            if(*err_at != '\0') {
+                fprintf(stderr, "Invalid char in port: %c\n", *err_at);
                 return EXIT_FAILURE;
             }
-            close(cli_sock);
+
+            if (connect(service_sock, (struct sockaddr *) &service_addr, sizeof(service_addr)) < 0) {
+                perror("connect() failed");
+                return EXIT_FAILURE;    
+            }
+
+            //do select and connect to ssh
+            while(1){
+                memset(buff, 0, BUFF_SIZE);
+                FD_ZERO (&active_fd_set);
+                FD_SET (service_sock, &active_fd_set);
+                FD_SET (cli_sock, &active_fd_set);
+
+                if (select(FD_SETSIZE, &active_fd_set, NULL, NULL, NULL) < 0) {
+                    perror("select()");
+                    return EXIT_FAILURE;
+                }
+
+                if(FD_ISSET(service_sock, &active_fd_set)) {
+                    printf("the service socket was set\n");
+                    //ssize_t read(int fd, void *buf, size_t count);
+                    rtn = read(service_sock, buff, BUFF_SIZE);
+                    if(rtn == 0) {
+                        close(service_sock);
+                        close(cli_sock);
+                        break;
+                    } else if(rtn < 0) {
+                        perror("read(service)");
+                        return EXIT_FAILURE;
+                    } else {
+                        if(send(cli_sock, buff, rtn, 0) < 0) {
+                            perror("send() failed");
+                            return EXIT_FAILURE;
+                        }
+                    }
+                }
+
+                if(FD_ISSET(cli_sock, &active_fd_set)) {
+                    printf("the client socket was set\n");
+
+                    rtn = read(cli_sock, buff, BUFF_SIZE);
+                    if(rtn == 0) {
+                        close(service_sock);
+                        close(cli_sock);
+                        break;
+                    } else if(rtn < 0) {
+                        perror("read(client)");
+                        return EXIT_FAILURE;
+                    } else {
+                        if(send(service_sock, buff, rtn, 0) < 0) {
+                            perror("send() failed");
+                            return EXIT_FAILURE;
+                        }
+                    }
+                }
+            }
         }
 
     }
