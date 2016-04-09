@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -g -Wall #-Werror 
-LIBS = -lcrypt -lssl -lpcap
+LIBS = -lcrypt -lssl
 BIN = pbproxy
 
 .PHONY: clean all tags
