@@ -15,6 +15,8 @@
 #include <arpa/inet.h>
 #include <sys/select.h>
 
+#include "encryption.h"
+
 #define BUFF_SIZE 1024
 
 void print_help(FILE *fd);
