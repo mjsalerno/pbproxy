@@ -8,7 +8,7 @@ int main(int argc, char * argv[]) {
     char *kval = NULL;
     char *host_val = NULL;
     char *port_val = NULL;
-    FILE *key_file = NULL;
+    FILE *key_fd = NULL;
     struct sockaddr_in serv_addr;
     struct sockaddr_in cli_addr;
     char *err_at = NULL;
@@ -63,7 +63,25 @@ int main(int argc, char * argv[]) {
         }
     }
 
-    //printf ("l = %s, k = %s, h = %s, p = %s\n", lval, kval, host_val, port_val);    
+    //printf ("l = %s, k = %s, h = %s, p = %s\n", lval, kval, host_val, port_val);
+    if(kval == NULL) {
+        fprintf(stderr, "Please specify a key file.\n");
+        return EXIT_FAILURE;
+    }
+    
+    key_fd = fopen(kval, "r");
+    if(key_fd == NULL) {
+        perror("fopen()");
+        return EXIT_FAILURE;
+    }
+    
+    char *key[BUFF_SIZE];
+    fread(key, BUFF_SIZE, 1, key_fd);
+    if(ferror(key_fd)){
+        fprintf(stderr, "Could not read the key file.\n");
+        return EXIT_FAILURE;
+    }
+    
 
     if(lval == NULL) {
         //client mode
@@ -99,8 +117,8 @@ int main(int argc, char * argv[]) {
                 fprintf(stderr, "Was not an IV: %d, %s\n", rtn, buff);
                 return EXIT_FAILURE;
             }
-            init_in((unsigned char *)"this is my key", (unsigned char *)buff);
-            init_out((unsigned char *)"this is my key");
+            init_in((unsigned char *)key, (unsigned char *)buff);
+            init_out((unsigned char *)key);
             
             //now send my IV
             int flag = 1;
@@ -144,9 +162,10 @@ int main(int argc, char * argv[]) {
                 }
 
                 if(FD_ISSET(STDIN_FILENO, &active_fd_set)) {
-                    //printf("the stdin was set\n");
+                    memset(buff_in, 0, BUFF_SIZE);
+                    memset(buff_out, 0, BUFF_SIZE);
 
-                    rtn = read(STDIN_FILENO, buff, BUFF_SIZE);
+                    rtn = read(STDIN_FILENO, buff_in, BUFF_SIZE);
                     if(rtn == 0) {
                         close(service_sock);
                         close(cli_sock);
@@ -155,7 +174,8 @@ int main(int argc, char * argv[]) {
                         perror("read(client)");
                         return EXIT_FAILURE;
                     } else {
-                        if(send(service_sock, buff, rtn, 0) < 0) {
+                        fencrypt(buff_out, buff_in, rtn);
+                        if(send(service_sock, buff_out, rtn, 0) < 0) {
                             perror("send(service) failed");
                             return EXIT_FAILURE;
                         }
@@ -205,7 +225,7 @@ int main(int argc, char * argv[]) {
                 return EXIT_FAILURE;
             }
             
-            init_out((unsigned char *)"this is my key");
+            init_out((unsigned char *)key);
             printf("sending the IV\n");
             //send IV
             int flag = 1;
@@ -221,7 +241,7 @@ int main(int argc, char * argv[]) {
                 fprintf(stderr, "Was not an IV: %d, %s\n", rtn, buff);
                 return EXIT_FAILURE;
             }
-            init_in((unsigned char *)"this is my key", (unsigned char *)buff);
+            init_in((unsigned char *)key, (unsigned char *)buff);
             
 
             //connect to other service
@@ -282,8 +302,10 @@ int main(int argc, char * argv[]) {
 
                 if(FD_ISSET(cli_sock, &active_fd_set)) {
                     printf("the client socket was set\n");
+                    memset(buff_in, 0, BUFF_SIZE);
+                    memset(buff_out, 0, BUFF_SIZE);
 
-                    rtn = read(cli_sock, buff, BUFF_SIZE);
+                    rtn = read(cli_sock, buff_in, BUFF_SIZE);
                     if(rtn == 0) {
                         close(service_sock);
                         close(cli_sock);
@@ -292,7 +314,8 @@ int main(int argc, char * argv[]) {
                         perror("read(client)");
                         return EXIT_FAILURE;
                     } else {
-                        if(send(service_sock, buff, rtn, 0) < 0) {
+                        fdecrypt(buff_out, buff_in, rtn);
+                        if(send(service_sock, buff_out, rtn, 0) < 0) {
                             perror("send() failed");
                             return EXIT_FAILURE;
                         }
