@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -g -Wall #-Werror 
+CFLAGS = -g -Wall -Werror 
 LIBS = -lm -lcrypto -lssl
 BIN = pbproxy
 
