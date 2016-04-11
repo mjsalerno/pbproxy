@@ -56,12 +56,21 @@ void init_in(const unsigned char *enc_key, const unsigned char iv[16]) {
 void send_iv(int fd) {
     write(fd, out_state.ivec, 8);
 }
+void print_ctr(struct ctr_state ctr) {
+    printf("====================\n");
+    printf("ivec: %u %u %u %u %u\n", ctr.ivec[0], ctr.ivec[1], ctr.ivec[2], ctr.ivec[3], ctr.ivec[4]);
+    printf("ecount: %u %u %u %u %u\n", ctr.ecount[0], ctr.ecount[1], ctr.ecount[2], ctr.ecount[3], ctr.ecount[4]);
+    printf("num: %u\n", ctr.num);
+    printf("====================\n");
+}
 
 void fencrypt(void *dest, const void *src, size_t n) {
+    //print_ctr(out_state);
     AES_ctr128_encrypt(src, dest, n, &key, out_state.ivec, out_state.ecount, &out_state.num);
 }
 
 void fdecrypt(void *dest, const void *src, size_t n) {
+    //print_ctr(in_state);
     AES_ctr128_encrypt(src, dest, n, &key, in_state.ivec, in_state.ecount, &in_state.num);
 }
 
