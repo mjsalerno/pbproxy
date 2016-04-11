@@ -2,7 +2,7 @@
 #define ENCRYPTION_H
 
 #include <openssl/aes.h>
-#include <openssl/rand.h> 
+#include <openssl/rand.h>
 #include <openssl/hmac.h>
 #include <openssl/buffer.h>
 #include <stdio.h>
@@ -11,10 +11,10 @@
 #include <math.h>
 #include <unistd.h>
 
-struct ctr_state { 
-	unsigned char ivec[AES_BLOCK_SIZE];	 
-	unsigned int num; 
-	unsigned char ecount[AES_BLOCK_SIZE]; 
+struct ctr_state {
+    unsigned char ivec[AES_BLOCK_SIZE];
+    unsigned int num;
+    unsigned char ecount[AES_BLOCK_SIZE];
 };
 
 void init_out(const unsigned char *enc_key);
