@@ -15,6 +15,8 @@ int main(int argc, char * argv[]) {
     int srv_sock = -1;
     int cli_sock = -1;
     char buff[BUFF_SIZE];
+    char buff_out[BUFF_SIZE];
+    char buff_in[BUFF_SIZE];
 
     opterr = 0;
     while ((c = getopt (argc, argv, "l:k:h")) != -1) {
@@ -61,7 +63,7 @@ int main(int argc, char * argv[]) {
         }
     }
 
-    //printf ("l = %s, k = %s, h = %s, p = %s\n", lval, kval, host_val, port_val);
+    //printf ("l = %s, k = %s, h = %s, p = %s\n", lval, kval, host_val, port_val);    
 
     if(lval == NULL) {
         //client mode
@@ -90,8 +92,28 @@ int main(int argc, char * argv[]) {
                 return EXIT_FAILURE;    
             }
             
+            // get IV
+            memset(buff, 0, BUFF_SIZE);
+            rtn = read(service_sock, buff, BUFF_SIZE);
+            if(rtn != 8) {
+                fprintf(stderr, "Was not an IV: %d, %s\n", rtn, buff);
+                return EXIT_FAILURE;
+            }
+            init_in((unsigned char *)"this is my key", (unsigned char *)buff);
+            init_out((unsigned char *)"this is my key");
+            
+            //now send my IV
+            int flag = 1;
+            setsockopt(cli_sock, IPPROTO_TCP, TCP_NODELAY, (char *) &flag, sizeof(int));
+            send_iv(service_sock);
+            flag = 0; 
+            setsockopt(cli_sock, IPPROTO_TCP, TCP_NODELAY, (char *) &flag, sizeof(int));
+            
             while(1) {
                 memset(buff, 0, BUFF_SIZE);
+                memset(buff_in, 0, BUFF_SIZE);
+                memset(buff_out, 0, BUFF_SIZE);
+                
                 FD_ZERO (&active_fd_set);
                 FD_SET (service_sock, &active_fd_set);
                 FD_SET (STDIN_FILENO, &active_fd_set);
@@ -104,7 +126,7 @@ int main(int argc, char * argv[]) {
                 if(FD_ISSET(service_sock, &active_fd_set)) {
                     //printf("the service socket was set\n");
                     //ssize_t read(int fd, void *buf, size_t count);
-                    rtn = read(service_sock, buff, BUFF_SIZE);
+                    rtn = read(service_sock, buff_in, BUFF_SIZE);
                     if(rtn == 0) {
                         close(service_sock);
                         close(cli_sock);
@@ -113,8 +135,8 @@ int main(int argc, char * argv[]) {
                         perror("read(service)");
                         return EXIT_FAILURE;
                     } else {
-                        //fprintf(stderr, "IMHERE IMHERE!!!!!!!!!\n");
-                        if(write(STDOUT_FILENO, buff, rtn) < 0) {
+                        fdecrypt(buff_out, buff_in, rtn);
+                        if(write(STDOUT_FILENO, buff_out, rtn) < 0) {
                             perror("send(stdout) failed");
                             return EXIT_FAILURE;
                         }
@@ -182,6 +204,25 @@ int main(int argc, char * argv[]) {
                 perror("accept() failed");
                 return EXIT_FAILURE;
             }
+            
+            init_out((unsigned char *)"this is my key");
+            printf("sending the IV\n");
+            //send IV
+            int flag = 1;
+            setsockopt(cli_sock, IPPROTO_TCP, TCP_NODELAY, (char *) &flag, sizeof(int));
+            send_iv(cli_sock);
+            flag = 0; 
+            setsockopt(cli_sock, IPPROTO_TCP, TCP_NODELAY, (char *) &flag, sizeof(int));
+            
+            //now get client IV
+            memset(buff, 0, BUFF_SIZE);
+            rtn = read(cli_sock, buff, BUFF_SIZE);
+            if(rtn != 8) {
+                fprintf(stderr, "Was not an IV: %d, %s\n", rtn, buff);
+                return EXIT_FAILURE;
+            }
+            init_in((unsigned char *)"this is my key", (unsigned char *)buff);
+            
 
             //connect to other service
             if((service_sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
@@ -207,6 +248,9 @@ int main(int argc, char * argv[]) {
             //do select and connect to ssh
             while(1){
                 memset(buff, 0, BUFF_SIZE);
+                memset(buff_in, 0, BUFF_SIZE);
+                memset(buff_out, 0, BUFF_SIZE);
+                
                 FD_ZERO (&active_fd_set);
                 FD_SET (service_sock, &active_fd_set);
                 FD_SET (cli_sock, &active_fd_set);
@@ -219,7 +263,7 @@ int main(int argc, char * argv[]) {
                 if(FD_ISSET(service_sock, &active_fd_set)) {
                     printf("the service socket was set\n");
                     //ssize_t read(int fd, void *buf, size_t count);
-                    rtn = read(service_sock, buff, BUFF_SIZE);
+                    rtn = read(service_sock, buff_in, BUFF_SIZE);
                     if(rtn == 0) {
                         close(service_sock);
                         close(cli_sock);
@@ -228,7 +272,8 @@ int main(int argc, char * argv[]) {
                         perror("read(service)");
                         return EXIT_FAILURE;
                     } else {
-                        if(send(cli_sock, buff, rtn, 0) < 0) {
+                        fencrypt(buff_out, buff_in, rtn);
+                        if(send(cli_sock, buff_out, rtn, 0) < 0) {
                             perror("send() failed");
                             return EXIT_FAILURE;
                         }
